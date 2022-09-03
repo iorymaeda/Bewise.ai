@@ -1,0 +1,23 @@
+version: '3.7'
+
+services:
+  dp-ner:
+    image: deeppavlov/base-gpu
+    restart: unless-stopped
+    environment:
+      - CONFIG=ner_rus_bert
+      - DP_COMPONENTS_VOLUME
+      - DP_VENV_VOLUME
+    volumes:
+      - ${DP_COMPONENTS_VOLUME}:/root/.deeppavlov
+      - ${DP_VENV_VOLUME}:/venv
+    expose:
+      - "5000"
+
+  rest-api:
+    build: ./
+    restart: unless-stopped
+    ports:
+      - "${LOCAL_PORT}:8200"
+    depends_on:
+      - dp-ner

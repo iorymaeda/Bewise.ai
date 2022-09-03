@@ -1,0 +1,6 @@
+.deeppavlov
+.ipynb_checkpoints
+venv
+
+test_data.csv
+*.bat
