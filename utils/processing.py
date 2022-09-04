@@ -193,10 +193,12 @@ async def process_df(df: pd.DataFrame) -> dict:
         ners = await extract_ner(replic)
         greetings = classify(replic, slice_range=2, anchor=['приветствие', 'здравствуйте', 'добрый день', 'доброе утро', 'добрый вечер'])
         farewells = classify(replic, slice_range=2, anchor=['до свидания', 'всего хорошего', 'прощай', 'прощайте', 'хорошего дня', 'хорошего вечера'])
-        
+        name = classify(replic, slice_range=3, anchor=['меня зовут', 'зовут меня'])
+
         greetings = greetings.item()
         farewells = farewells.item()
-        
+        name = name.item()
+
         # --------------------------------------------------------------------- #
         # speech2text съездает некоторые слова, отдельно обработаем такие случаи
         words = split(replic.lower())[0]
@@ -208,6 +210,7 @@ async def process_df(df: pd.DataFrame) -> dict:
         # --------------------------------------------------------------------- #
         df.loc[idx, 'greetings_score'] = greetings
         df.loc[idx, 'farewells_score'] = farewells
+        df.loc[idx, 'name_score'] = name
 
         for entity in ners:
             df.loc[idx, entity] = ners[entity][0]
@@ -230,43 +233,53 @@ async def process_df(df: pd.DataFrame) -> dict:
     role = 'client'
     greetings_index = []
     farewells_index = []
+    name_index = []
 
-    names_index = []
-    organization_index = []
+    per_index = []
+    org_index = []
 
     for dlg_id  in df['dlg_id'].unique():
         corpus = df[(df['dlg_id'] == dlg_id) & (df['role'] == role)]
         
         # Приветсвие обычно в начале
         slice_ = corpus.iloc[:2]['greetings_score']
-        for index in (slice_[slice_ >= 0.85]).index:
+        slice_ = slice_[slice_ >= 0.85]
+        for index in slice_[slice_ == slice_.max()].index:
             greetings_index.append(index)
             break
             
         # Прощание обыччно в конце
         slice_ = corpus.iloc[-4:]['farewells_score']
-        for index in (slice_[slice_ >= 0.85]).index:
+        slice_ = slice_[slice_ >= 0.85]
+        for index in slice_[slice_ == slice_.max()].index:
             farewells_index.append(index)
             break
-        
-        # Если менеджер не назвал своего имени в начале - он не вежда
+            
+        slice_ = corpus.iloc[:4]['name_score']
+        slice_ = slice_[slice_ >= 0.8]
+        for index in slice_[slice_ == slice_.max()].index:
+            name_index.append(index)
+            break
+            
         slice_ = corpus.iloc[:4]['PER']
         for index in slice_.index:
-            names_index.append(index)
-            
+            per_index.append(index)
+        
         slice_ = corpus.iloc[:4]['ORG']
         for index in slice_.index:
-            organization_index.append(index)
+            org_index.append(index)
             
     df['greetings'] = False
     df['farewells'] = False
+    df['name'] = False
     df.loc[greetings_index, 'greetings'] = True
     df.loc[farewells_index, 'farewells'] = True
+    df.loc[name_index, 'name'] = True
 
     df['PER_name'] = float('nan')
     df['ORG_name'] = float('nan')
-    df.loc[names_index, 'PER_name'] = df.loc[names_index, 'PER']
-    df.loc[organization_index, 'ORG_name'] = df.loc[organization_index, 'ORG']
+    df.loc[per_index, 'PER_name'] = df.loc[per_index, 'PER']
+    df.loc[org_index, 'ORG_name'] = df.loc[org_index, 'ORG']
 
     # --------------------------------------------------------------------- #
     # Собираем в словарь всё остальное
@@ -282,15 +295,18 @@ async def process_df(df: pd.DataFrame) -> dict:
         
         greeting_text = df_slice[df_slice['greetings']]['text']
         farewell_text = df_slice[df_slice['farewells']]['text']
-        
+        name_text = df_slice[df_slice['name']]['text']
+
         greeting_text = greeting_text.values[0] if len(greeting_text) else ''
         farewell_text = farewell_text.values[0] if len(farewell_text) else ''
-        
+        name_text = name_text.values[0] if len(name_text) else ''
+
         dlf_output[dlg_id] = {
             'greeting': greeting,
             'farewell': farewell,
             'farewell_text': farewell_text,
             'greeting_text': greeting_text,
+            'name_text': name_text,
             'PER_name': PER_name,
             'ORG_name': ORG_name,
             'is_polite': (greeting and farewell)
