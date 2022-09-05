@@ -12,6 +12,7 @@ class output_model(BaseModel):
     farewell: bool
     farewell_text: str
     greeting_text: str
+    name_text: str
     PER_name: list[str]
     ORG_name: list[str]
     is_polite: bool
