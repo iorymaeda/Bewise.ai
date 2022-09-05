@@ -2,7 +2,7 @@ version: '3.7'
 
 services:
   dp-ner:
-    image: "deeppavlov/base-gpu:1.0.0rc1"
+    image: "deeppavlov/base-cpu:0.17.4"
     restart: unless-stopped
     environment:
       - CONFIG=ner_rus_bert
